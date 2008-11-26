@@ -1,11 +1,12 @@
 use strict;
 use warnings;
-use Test::More tests => 3;
+use Test::More tests => 4;
 use Data::Future;
 
 {
     my $value = spawn { 'something' };
     is $value, 'something', 'a quick return';
+    is $value, 'something', 'still has the same value';
 }
 
 {

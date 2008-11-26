@@ -4,6 +4,7 @@ use warnings;
 use strict;
 use base qw( Exporter );
 use overload '""' => 'force', fallback => 1;
+use Data::Thunk qw( lazy );
 use threads;
 
 BEGIN {
@@ -42,35 +43,13 @@ sub spawn(&) {
     my ($code) = @_;
     my $thread = threads->create($code);
 
-    return Data::Future->new({
-        thread => $thread,
-    });
-}
-
-=head1 METHODS
-
-=head2 new
-
-=cut
-
-sub new {
-    my ($class, $args) = @_;
-    return bless $args, $class;
-}
-
-=head2 force
-
-=cut
-
-sub force {
-    my ($self) = @_;
-    my $thread = $self->{thread};
-    my $value = $thread->join;
-    if ( my $error = $thread->error ) {
-        die $error;
-    }
-
-    return $value;
+    return lazy {
+        my $value = $thread->join;
+        if ( my $error = $thread->error ) {
+            die $error;
+        }
+        return $value;
+    };
 }
 
 =head1 AUTHOR
