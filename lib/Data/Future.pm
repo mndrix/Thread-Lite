@@ -2,50 +2,75 @@ package Data::Future;
 
 use warnings;
 use strict;
+use base qw( Exporter );
+use overload '""' => 'force', fallback => 1;
+use threads;
+
+BEGIN {
+    our @EXPORT = qw( spawn );
+};
 
 =head1 NAME
 
-Data::Future - The great new Data::Future!
-
-=head1 VERSION
-
-Version 0.01
+Data::Future - Futures for Perl
 
 =cut
 
 our $VERSION = '0.01';
 
-
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
-
     use Data::Future;
-
-    my $foo = Data::Future->new();
-    ...
+    my $value = future {
+        # long running computation goes here
+    };
+    
+    # do some things that don't require $value
+    
+    # block until the long-running computation is done
+    print "Long computation returned: $value\n";
 
 =head1 EXPORT
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
+=head2 spawn
 
-=head1 FUNCTIONS
-
-=head2 function1
+This function is exported by default.
 
 =cut
 
-sub function1 {
+sub spawn(&) {
+    my ($code) = @_;
+    my $thread = threads->create($code);
+
+    return Data::Future->new({
+        thread => $thread,
+    });
 }
 
-=head2 function2
+=head1 METHODS
+
+=head2 new
 
 =cut
 
-sub function2 {
+sub new {
+    my ($class, $args) = @_;
+    return bless $args, $class;
+}
+
+=head2 force
+
+=cut
+
+sub force {
+    my ($self) = @_;
+    my $thread = $self->{thread};
+    my $value = $thread->join;
+    if ( my $error = $thread->error ) {
+        die $error;
+    }
+
+    return $value;
 }
 
 =head1 AUTHOR
