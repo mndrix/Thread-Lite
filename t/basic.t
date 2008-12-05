@@ -1,12 +1,20 @@
 use strict;
 use warnings;
-use Test::More tests => 4;
+use Test::More tests => 6;
 use Data::Future;
 
+# a scalar return value
 {
     my $value = spawn { 'something' };
-    is $value, 'something', 'a quick return';
-    is $value, 'something', 'still has the same value';
+    is $value, 'something', 'a quick scalar return';
+    is $value, 'something', '... still has the same value';
+}
+
+# a reference return value
+{
+    my $value = spawn { ['one', 'two'] };
+    is_deeply $value, ['one', 'two'], 'a quick reference return';
+    is_deeply $value, ['one', 'two'], '... still has the same value';
 }
 
 {

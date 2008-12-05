@@ -3,9 +3,9 @@ package Data::Future;
 use warnings;
 use strict;
 use base qw( Exporter );
-use overload '""' => 'force', fallback => 1;
 use Data::Thunk qw( lazy );
-use threads;
+use File::Temp qw( tempfile );
+use Storable qw( store retrieve );
 
 BEGIN {
     our @EXPORT = qw( spawn );
@@ -41,14 +41,29 @@ This function is exported by default.
 
 sub spawn(&) {
     my ($code) = @_;
-    my $thread = threads->create($code);
 
+    # open a temporary file for interprocess communication
+    my ( undef, $filename ) = tempfile( UNLINK => 0 );
+    
+    # create a new process to handle the spawned calculation
+    my $pid = fork;
+    die "Unable to fork: $!\n" if not defined $pid;
+
+    # the child process performs the calculation
+    if ( not $pid ) {
+        my $value = $code->();
+        store( { returned => $value }, $filename );
+        exit;    # the calculation is finished
+    }
+
+    # the parent process returns a thunk immediately
     return lazy {
-        my $value = $thread->join;
-        if ( my $error = $thread->error ) {
-            die $error;
-        }
-        return $value;
+        my $harvested_pid = waitpid $pid, 0;
+        die "Harvested the wrong child? $pid vs $harvested_pid"
+            if $pid != $harvested_pid;
+        my $value = retrieve($filename);
+        unlink $filename;
+        return $value->{returned};
     };
 }
 
