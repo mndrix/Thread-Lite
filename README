@@ -18,21 +18,21 @@ SUPPORT AND DOCUMENTATION
 After installing, you can find documentation for this module with the
 perldoc command.
 
-    perldoc Data::Future
+    perldoc Sub::Future
 
 You can also look for information at:
 
     RT, CPAN's request tracker
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Data-Future
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Sub-Future
 
     AnnoCPAN, Annotated CPAN documentation
-        http://annocpan.org/dist/Data-Future
+        http://annocpan.org/dist/Sub-Future
 
     CPAN Ratings
-        http://cpanratings.perl.org/d/Data-Future
+        http://cpanratings.perl.org/d/Sub-Future
 
     Search CPAN
-        http://search.cpan.org/dist/Data-Future/
+        http://search.cpan.org/dist/Sub-Future/
 
 
 COPYRIGHT AND LICENCE

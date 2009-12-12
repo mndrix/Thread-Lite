@@ -24,7 +24,7 @@ Sub::Future - concurrency with futures
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 
@@ -120,8 +120,9 @@ Please report any bugs or feature requests to C<bug-data-future at rt.cpan.org>,
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Sub-Future>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
+=head1 Version Control
 
-
+git://github.com/mndrix/Sub-Future.git
 
 =head1 SUPPORT
 
@@ -130,6 +131,8 @@ You can find documentation for this module with the perldoc command.
     perldoc Sub::Future
 
 =head1 See Also
+
+L<http://github.com/mndrix/Sub-Future>
 
 L<http://en.wikipedia.org/wiki/Futures_and_promises>
 
