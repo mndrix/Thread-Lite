@@ -48,7 +48,7 @@ TODO: {
     "placeholder date/time"       => qr(Date/time)
   );
 
-  module_boilerplate_ok('lib/Data/Future.pm');
+  module_boilerplate_ok('lib/Sub/Future.pm');
 
 
 }
