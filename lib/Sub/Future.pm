@@ -3,10 +3,19 @@ package Sub::Future;
 use warnings;
 use strict;
 use base qw( Exporter );
-use Storable qw( store retrieve );
+use Storable qw( freeze thaw );
+use overload
+    '""'     => 'value',
+    'bool'   => 'value',
+    '0+'     => 'value',
+    '${}'    => 'value',
+    '@{}'    => 'value',
+    '%{}'    => 'value',
+    fallback => 1
+    ;
 
 BEGIN {
-    our @EXPORT = qw( spawn );
+    our @EXPORT = qw( future );
 };
 
 =head1 NAME
@@ -33,41 +42,72 @@ our $VERSION = '0.01';
 
 =head2 future
 
-This function is exported by default.
+Performs the given code block in parallel and returns immediately.  The
+returned value can be used at any time to retrieve the value calculated by the
+code block.
 
 =cut
 
 sub future(&) {
     my ($code) = @_;
-
-    # open a temporary file for interprocess communication
-    my ( undef, $filename ) = tempfile( UNLINK => 0 );
     
     # create a new process to handle the spawned calculation
-    my $pid = fork;
+    my $pid = open my $fh, '-|';
     die "Unable to fork: $!\n" if not defined $pid;
 
     # the child process performs the calculation
     if ( not $pid ) {
         my $value = $code->();
-        store( { returned => $value }, $filename );
+        my $frozen = freeze { returned => $value };
+        print $frozen;
         exit;    # the calculation is finished
     }
 
-    # the parent process returns a thunk immediately
-    return lazy {
-        my $harvested_pid = waitpid $pid, 0;
-        die "Harvested the wrong child? $pid vs $harvested_pid"
-            if $pid != $harvested_pid;
-        my $value = retrieve($filename);
-        unlink $filename;
-        return $value->{returned};
-    };
+    # the parent process returns immediately
+    return bless { pid => $pid, fh => $fh }, __PACKAGE__;
+}
+
+=head2 value
+
+Calling this method on the object returned by L</future> returns the value
+calculated by the code block.  It's usually not necessary to call this method
+directly since most operations performed on the object implicitly return the
+value.
+
+=cut
+
+sub value {
+    my ($self) = @_;
+
+    # temporarily disable overloading
+    my $class = ref $self;
+    bless $self, 'overload::dummy';
+    if ( exists $self->{value} ) {
+        my $v = $self->{value};
+        bless $self, $class;
+        return $v;
+    }
+
+    # retrieve the calculated value
+    my $fh     = $self->{fh};
+    my $frozen = do { local $/; <$fh> };
+    my $v      = $self->{value} = thaw($frozen)->{returned};
+
+    # wait on the child to exit
+    my $pid = $self->{pid};
+    my $harvested_pid = waitpid $pid, 0;
+    if ( $pid != $harvested_pid ) {
+        bless $self, $class;
+        die "Harvested the wrong child? $pid vs $harvested_pid";
+    }
+
+    bless $self, $class;
+    return $v;
 }
 
 =head1 AUTHOR
 
-Michael Hendricks, C<< <michael at ndrix.org> >>
+Michael Hendricks, C<< <michael@ndrix.org> >>
 
 =head1 BUGS
 
