@@ -31,20 +31,23 @@ our $VERSION = '0.01';
     use Sub::Future;
     my $value = future {
         # long running computation goes here
+        return 'result goes here';
     };
     
     # do some things that don't require $value
+    # while $value is calculated in parallel
     
-    # block until the long-running computation is done
+    # use the computation's return value (blocking if necessary)
     print "Long computation returned: $value\n";
 
-=head1 EXPORT
+=head1 Exported Subroutines
 
-=head2 future
+=head2 future $coderef
 
-Performs the given code block in parallel and returns immediately.  The
-returned value can be used at any time to retrieve the value calculated by the
-code block.
+Starts executing C<$coderef> in parallel and then returns immediately.  The
+returned value can be used at any time to retrieve the value calculated by
+C<$coderef>.  If the parallel calculation isn't done, using the value blocks
+until the value is ready.
 
 =cut
 
@@ -66,6 +69,8 @@ sub future(&) {
     # the parent process returns immediately
     return bless { pid => $pid, fh => $fh }, __PACKAGE__;
 }
+
+=head1 Methods
 
 =head2 value
 
@@ -124,8 +129,9 @@ You can find documentation for this module with the perldoc command.
 
     perldoc Sub::Future
 
-=head1 ACKNOWLEDGEMENTS
+=head1 See Also
 
+L<http://en.wikipedia.org/wiki/Futures_and_promises>
 
 =head1 COPYRIGHT & LICENSE
 
