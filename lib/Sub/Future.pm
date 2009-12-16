@@ -136,6 +136,8 @@ L<http://github.com/mndrix/Sub-Future>
 
 L<http://en.wikipedia.org/wiki/Futures_and_promises>
 
+L<subs::parallel>
+
 =head1 COPYRIGHT & LICENSE
 
 Copyright 2009 Michael Hendricks, all rights reserved.
