@@ -40,7 +40,7 @@ our $VERSION = '0.02';
     # use the computation's return value (blocking if necessary)
     print "Long computation returned: $value\n";
 
-=head1 Exported Subroutines
+=head1 EXPORTED
 
 =head2 future $coderef
 
@@ -70,7 +70,7 @@ sub future(&) {
     return bless { pid => $pid, fh => $fh }, __PACKAGE__;
 }
 
-=head1 Methods
+=head1 METHODS
 
 =head2 value
 
@@ -120,7 +120,7 @@ Please report any bugs or feature requests to C<bug-data-future at rt.cpan.org>,
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Sub-Future>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
-=head1 Version Control
+=head1 VERSION CONTROL
 
 git://github.com/mndrix/Sub-Future.git
 
@@ -130,7 +130,7 @@ You can find documentation for this module with the perldoc command.
 
     perldoc Sub::Future
 
-=head1 See Also
+=head1 SEE ALSO
 
 L<http://github.com/mndrix/Sub-Future>
 
