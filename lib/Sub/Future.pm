@@ -37,14 +37,14 @@ our $VERSION = '0.02';
     # do some things that don't require $value
     # while $value is calculated in parallel
     
-    # use the computation's return value (blocking if necessary)
+    # use the computation's return value (blocks if necessary)
     print "Long computation returned: $value\n";
 
 =head1 EXPORTED
 
 =head2 future $coderef
 
-Starts executing C<$coderef> in parallel and then returns immediately.  The
+Starts executing C<$coderef> in parallel and returns immediately.  The
 returned value can be used at any time to retrieve the value calculated by
 C<$coderef>.  If the parallel calculation isn't done, using the value blocks
 until the value is ready.
