@@ -3,7 +3,7 @@ package Sub::Future;
 use warnings;
 use strict;
 use base qw( Exporter );
-use Storable qw( freeze thaw );
+use Sub::Future::Scheduler;
 use overload
     '""'     => 'value',
     'bool'   => 'value',
@@ -51,23 +51,14 @@ until the value is ready.
 
 =cut
 
+our $scheduler;
 sub future(&) {
     my ($code) = @_;
-    
-    # create a new process to handle the spawned calculation
-    my $pid = open my $fh, '-|';
-    die "Unable to fork: $!\n" if not defined $pid;
-
-    # the child process performs the calculation
-    if ( not $pid ) {
-        my $value = $code->();
-        my $frozen = freeze { returned => $value };
-        print $frozen;
-        exit;    # the calculation is finished
-    }
-
-    # the parent process returns immediately
-    return bless { pid => $pid, fh => $fh }, __PACKAGE__;
+    $scheduler = Sub::Future::Scheduler->new if not $scheduler;
+    return $scheduler->start($code);
+}
+END {
+    kill HUP => $scheduler->{pid} if $scheduler;
 }
 
 =head1 METHODS
@@ -87,25 +78,16 @@ sub value {
     # temporarily disable overloading
     my $class = ref $self;
     bless $self, 'overload::dummy';
+
+    # do we already have the value locally?
     if ( exists $self->{value} ) {
         my $v = $self->{value};
         bless $self, $class;
         return $v;
     }
 
-    # retrieve the calculated value
-    my $fh     = $self->{fh};
-    my $frozen = do { local $/; <$fh> };
-    my $v      = $self->{value} = thaw($frozen)->{returned};
-
-    # wait on the child to exit
-    my $pid = $self->{pid};
-    my $harvested_pid = waitpid $pid, 0;
-    if ( $pid != $harvested_pid ) {
-        bless $self, $class;
-        die "Harvested the wrong child? $pid vs $harvested_pid";
-    }
-
+    # no, so wait for the scheduler to provide the answer
+    my $v = $self->{value} = $scheduler->wait_on($self);
     bless $self, $class;
     return $v;
 }
