@@ -54,6 +54,7 @@ until the value is ready.
 our $scheduler;
 sub future(&) {
     my ($code) = @_;
+#   return bless { code => $code }, __PACKAGE__;
     $scheduler = Sub::Future::Scheduler->new if not $scheduler;
     return $scheduler->start($code);
 }
@@ -88,6 +89,7 @@ sub value {
 
     # no, so wait for the scheduler to provide the answer
     my $v = $self->{value} = $scheduler->wait_on($self);
+#   my $v = $self->{value} = $self->{code}->();
     bless $self, $class;
     return $v;
 }

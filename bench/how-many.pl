@@ -2,7 +2,10 @@ use strict;
 use warnings;
 use Sub::Future;
 
-for ( 1 .. 10_000 ) {
+my @fs;
+for ( 1 .. 100 ) {
     my $f = future { 1 };
-    $f->value;
+    push @fs, $f;
 }
+
+while ( my $f = shift @fs ) { $f->value }

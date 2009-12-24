@@ -6,6 +6,7 @@ use IPC::Open2 qw();
 use Data::Dump::Streamer;
 use Sub::Future::Worker;
 use IO::Select;
+use IO::Handle;
 use Sys::CPU qw();
 
 sub new {
@@ -13,6 +14,7 @@ sub new {
 
     my ( $writer, $reader );
     my $pid = IPC::Open2::open2( $reader, $writer, '-' );
+    $writer->autoflush(1);
 
     # in the parent
     return bless {
@@ -23,15 +25,12 @@ sub new {
     }, $class if $pid;
 
     # in the scheduler itself (child)
+    STDOUT->autoflush(1);
     my $select = IO::Select->new( \*STDIN );
     my $self = bless {
-        select => $select,
-        workers => {
-            allowed   => Sys::CPU::cpu_count(),
-            available => [],
-            busy      => [],
-            all       => [],
-        },
+        select  => $select,
+        allowed => Sys::CPU::cpu_count(),
+        workers => {},
     }, $class;
     local $SIG{HUP} = sub { $self->terminate_workers; exit };
     $self->listen;
@@ -39,7 +38,7 @@ sub new {
 
 sub workers {
     my ($self) = @_;
-    return @{ $self->{workers}{all} };
+    return map { $_->{worker} } values %{ $self->{workers} };
 }
 
 # Scheduler client methods (run in the parent process)
@@ -54,9 +53,9 @@ sub start {
         code => $code,
     };
     local $| = 1;
-    Dump($job)->Names('job')->To( $self->{writer} )->Out;
+    my $frozen_job = Dump($job)->Names('job')->Out;
     my $writer = $self->{writer};
-    print $writer "\0";
+    print $writer "# app to scheduler\n$frozen_job\0";
 
     return bless { id => $job->{id} }, 'Sub::Future';
 }
@@ -65,12 +64,18 @@ sub start {
 sub wait_on {
     my ( $self, $future ) = @_;
     my $job_id = $future->{id};
+    $self->warn("app waiting on job $job_id");
     my $reader = $self->{reader};
 
     while ( not exists $self->{done}{$job_id} ) {
-        my $frozen = do { local $/ = "\0"; <$reader> };
+        my $frozen = do {
+            local $/ = "\0";
+            chomp( my $x = <$reader> );
+            $x;
+        };
         my $job;
         eval $frozen;
+        $self->warn("app received job $job->{id}");
         $self->{done}{ $job->{id} } = $job->{value};
     }
 
@@ -85,87 +90,132 @@ sub listen {
 
     my $select = $self->{select};
     while ( my @ready = $select->can_read ) {
-        READY:
         for my $fh (@ready) {
-            my $frozen = do { local $/ = "\0"; <$fh> };
-            warn "Scheduler got frozen job: $frozen\n" if $ENV{DEBUG};
-            if ( $fh eq \*STDIN ) {    # a new job arriving
-                warn "It's a new job\n" if $ENV{DEBUG};
-                $self->new_job($frozen);
+            my $frozen = do {
+                local $/ = "\0";
+                chomp( my $x = <$fh> );
+                $x;
+            };
+            $self->warn("Handling job from $fh:\n$frozen");
+            if ( $self->is_worker_fh($fh) ) { # completed job arriving
+                $self->warn("from a worker");
+                $self->receive_job( $fh, $frozen );
             }
-            else {                     # a completed job arriving
-                warn "It's a completed job\n" if $ENV{DEBUG};
-                local $| = 1;
-                warn "Scheduler sending completed job: $frozen\n"
-                  if $ENV{DEBUG};
-                print $frozen;         # send result to scheduler client
-                $self->job_completed($fh);
+            else { # a new job arriving
+                $self->warn("a new job");
+                $self->queue_job($frozen);
             }
         }
 
+        $self->warn('making assignments');
         $self->make_assignments;
-        warn "Scheduler is listening again\n" if $ENV{DEBUG};
+        $self->warn('listening again');
     }
 
     die "Scheduler shouldn't have stopped listening";
 }
 
-# handles a newly arrived job
-sub new_job {
+sub is_worker_fh {
+    my ( $self, $fh ) = @_;
+    return exists $self->{workers}{$fh};
+}
+
+# adds a job to the queue to be processed later
+sub queue_job {
     my ( $self, $frozen_job ) = @_;
-    
-    if ( my $worker = shift @{ $self->{workers}{available} } ) {
-        push @{ $self->{workers}{busy} }, $worker;
-        $worker->assign_job($frozen_job);
+    push @{ $self->{job_queue} }, $frozen_job;
+    $self->warn('queued a job');
+    return;
+}
+
+sub jobs_available {
+    my ($self) = @_;
+    return scalar @{ $self->{job_queue} };
+}
+
+sub next_job {
+    my ($self) = @_;
+    return shift @{ $self->{job_queue} };
+}
+
+sub worker_count {
+    my ($self) = @_;
+    return scalar keys %{ $self->{workers} };
+}
+
+sub available_worker {
+    my ($self) = @_;
+
+    # is an existing worker available?
+    my @fh_ids = keys %{ $self->{workers} };
+    for my $fh_id (@fh_ids) {
+        my $details = $self->{workers}{$fh_id};
+        if ( $details->{status} eq 'available' ) {
+            return $details->{worker};
+        }
+    }
+
+    # have we hit the maximum number of workers?
+    if ( $self->worker_count >= $self->{allowed} ) {
+        my $msg = "\n";
+        for my $worker ( $self->workers ) {
+            $msg .= sprintf "Worker %d with %d and %d\n", $worker->pid,
+              fileno($worker->reader), fileno($worker->writer);
+        }
+        $self->warn($msg);
         return;
     }
 
-    # queue the job if we can't make more workers
-    if ( @{ $self->{workers}{all} } >= $self->{workers}{allowed} ) {
-        push @{ $self->{job_queue} }, $frozen_job;
-        return;
-    }
-
-    # create a new worker and assign the job
+    # let's create a new worker
     my $worker = Sub::Future::Worker->new;
-    push @{ $self->{workers}{all} },  $worker;
-    push @{ $self->{workers}{busy} }, $worker;
-    $worker->assign_job($frozen_job);
-    $self->{select}->add( $worker->reader );
+    my $reader = $worker->reader;
+    $self->{select}->add($reader);
+    $self->{workers}{$reader} = {
+        worker => $worker,
+        status => 'available',
+    };
+    return $worker;
+}
+
+# receives a completed job
+sub receive_job {
+    my ( $self, $fh, $frozen ) = @_;
+
+    # the associated worker is no longer busy
+    $self->{workers}{$fh}{status} = 'available';
+
+    # forward the answer to our parent process
+    print "$frozen\0";
+    $self->warn('received a completed job');
     return;
 }
 
 # assign any pending jobs to available workers
 sub make_assignments {
     my ($self) = @_;
-    while ( @{ $self->{workers}{available} } ) {
-        my $frozen_job = shift @{ $self->{job_queue} }
-            or last;
-        my $worker = shift @{ $self->{workers}{available} };
-        push @{ $self->{workers}{busy} }, $worker;
-        $worker->assign_job($frozen_job);
-        return;
+
+    while ( $self->jobs_available ) {
+        $self->warn('there are jobs available');
+        if ( my $worker = $self->available_worker ) {
+            $self->warn('and a worker available');
+            $self->assign_job( $self->next_job, $worker );
+        }
+        else {  # no workers available to accept assignments
+            $self->warn('but no worker available');
+            return;
+        }
     }
 
     return;
 }
 
-# marks a specific worker as finished with its current assignment
-sub job_completed {
-    my ( $self, $fh ) = @_;
-    my $busy = $self->{workers}{busy};
+sub assign_job {
+    my ( $self, $frozen_job, $worker ) = @_;
+    $self->warn( sprintf("assigning job to %s", $worker->reader) );
 
-    for my $i ( 0 .. $#$busy ) {
-        warn "Scheduler comparing FHs: $fh and ", $busy->[$i]->reader, "\n"
-          if $ENV{DEBUG};
-        if ( $fh eq $busy->[$i]->reader ) {
-            my $worker = splice @$busy, $i, 1;
-            push @{ $self->{workers}{available} }, $worker;
-            return;
-        }
-    }
-
-    die "Couldn't find the worker for FH $fh";
+    $self->{workers}{ $worker->reader }{status} = 'busy';
+    $worker->assign_job($frozen_job);
+    return;
 }
 
 sub terminate_workers {
@@ -174,5 +224,16 @@ sub terminate_workers {
     kill 'HUP', map { $_->pid } $self->workers;
     return;
 }
+
+sub warn {
+    my ($self, $msg) = @_;
+    return if not $ENV{DEBUG};
+    use Log::StdLog {
+        level => 'trace',
+        file  => '/Users/michael/src/Sub-Future/errors.log'
+    };
+    print {*STDLOG} warn => "Scheduler: $msg\n";
+}
+
 
 1;

@@ -4,21 +4,24 @@ use warnings;
 
 use Data::Dump::Streamer;
 use IPC::Open2 qw();
+use IO::Handle;
 
 sub new {
     my $class = shift;
 
     my ( $writer, $reader );
     my $pid = IPC::Open2::open2( $reader, $writer, '-' );
-
-    # in the parent
-    return bless {
-        pid         => $pid,
-        reader      => $reader,
-        writer      => $writer,
-    }, $class if $pid;
+    if ( $pid ) { # in the parent
+        $writer->autoflush(1);
+        return bless {
+            pid         => $pid,
+            reader      => $reader,
+            writer      => $writer,
+        }, $class;
+    }
 
     # in the worker itself (child)
+    STDOUT->autoflush(1);
     my $self = bless { }, $class;
     local $SIG{HUP} = sub { exit };
     $self->listen;
@@ -34,10 +37,8 @@ sub writer { shift->{writer} }
 # gives the worker process something to do
 sub assign_job {
     my ( $self, $frozen_job ) = @_;
-    warn "Scheduler assigning job: $frozen_job\n" if $ENV{DEBUG};
     my $writer = $self->writer;
-    local $| = 1;
-    print $writer $frozen_job;
+    print $writer sprintf("\n# targeting worker %d\n$frozen_job\0", $self->pid);
     return;
 }
 
@@ -47,18 +48,27 @@ sub assign_job {
 sub listen {
     my ($self) = @_;
     while ( my $frozen_job = do { local $/="\0"; <STDIN> } ) {
-        warn "Worker got frozen job: $frozen_job\n" if $ENV{DEBUG};
+        do { local $/="\0"; chomp($frozen_job) };
+        $self->warn("got frozen job: $frozen_job");
         my $job;
         eval $frozen_job;
         my $code = delete $job->{code};
         $job->{value} = $code->();
-        use Data::Dumper;
-        warn "Worker sending job: ", Dumper($job), "\n" if $ENV{DEBUG};
-        local $| = 1;
-        Dump($job)->To( \*STDOUT )->Names('job')->Out;
-        print "\0";
-        warn "Worker sent the finished job to scheduler\n" if $ENV{DEBUG};
+        $self->warn( "sending job: $frozen_job");
+        $frozen_job = Dump($job)->Names('job')->Out;
+        $self->warn( "answer: $frozen_job" );
+        print "# answer back to scheduler\n$frozen_job\0";
     }
+}
+
+sub warn {
+    my ($self, $msg) = @_;
+    return if not $ENV{DEBUG};
+    use Log::StdLog {
+        level => 'trace',
+        file  => '/Users/michael/src/Sub-Future/errors.log'
+    };
+    print {*STDLOG} warn => "Worker: $msg\n";
 }
 
 1;
