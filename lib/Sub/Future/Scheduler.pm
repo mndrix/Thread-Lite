@@ -2,6 +2,7 @@ package Sub::Future::Scheduler;
 use strict;
 use warnings;
 
+use AnyEvent;
 use IPC::Open2 qw();
 use Data::Dump::Streamer;
 use Sub::Future::Worker;
@@ -25,14 +26,11 @@ sub new {
     }, $class if $pid;
 
     # in the scheduler itself (child)
-    STDOUT->autoflush(1);
-    my $select = IO::Select->new( \*STDIN );
     my $self = bless {
-        select  => $select,
         allowed => Sys::CPU::cpu_count(),
         workers => {},
+        watchers => [],
     }, $class;
-    local $SIG{HUP} = sub { $self->terminate_workers; exit };
     $self->listen;
 }
 
@@ -88,30 +86,22 @@ sub wait_on {
 sub listen {
     my ($self) = @_;
 
-    my $select = $self->{select};
-    while ( my @ready = $select->can_read ) {
-        for my $fh (@ready) {
-            my $frozen = do {
-                local $/ = "\0";
-                chomp( my $x = <$fh> );
-                $x;
-            };
-            $self->warn("Handling job from $fh:\n$frozen");
-            if ( $self->is_worker_fh($fh) ) { # completed job arriving
-                $self->warn("from a worker");
-                $self->receive_job( $fh, $frozen );
-            }
-            else { # a new job arriving
-                $self->warn("a new job");
-                $self->queue_job($frozen);
-            }
-        }
+    # unbuffer output stream to the parent process
+    STDOUT->autoflush(1);
 
-        $self->warn('making assignments');
-        $self->make_assignments;
-        $self->warn('listening again');
-    }
+    # setup event watchers
+    my $incoming_jobs = AnyEvent->io(
+        fh   => \*STDIN,
+        poll => 'r',
+        cb   => sub { $self->queue_job },
+    );
+    my $sighup = AnyEvent->signal(
+        signal => 'HUP',
+        cb     => sub { $self->terminate_workers },
+    );
 
+    # wait forever for events
+    AnyEvent->condvar->recv;
     die "Scheduler shouldn't have stopped listening";
 }
 
@@ -122,10 +112,20 @@ sub is_worker_fh {
 
 # adds a job to the queue to be processed later
 sub queue_job {
-    my ( $self, $frozen_job ) = @_;
+    my ($self) = @_;
+    my $frozen_job = $self->read_frozen_job(\*STDIN);
     push @{ $self->{job_queue} }, $frozen_job;
     $self->warn('queued a job');
+    $self->make_assignments;
     return;
+}
+
+sub read_frozen_job {
+    my ( $self, $fh ) = @_;
+    local $/ = "\0";
+    my $frozen_job = <$fh>;
+    chomp $frozen_job;
+    return $frozen_job;
 }
 
 sub jobs_available {
@@ -157,19 +157,18 @@ sub available_worker {
 
     # have we hit the maximum number of workers?
     if ( $self->worker_count >= $self->{allowed} ) {
-        my $msg = "\n";
-        for my $worker ( $self->workers ) {
-            $msg .= sprintf "Worker %d with %d and %d\n", $worker->pid,
-              fileno($worker->reader), fileno($worker->writer);
-        }
-        $self->warn($msg);
         return;
     }
 
     # let's create a new worker
     my $worker = Sub::Future::Worker->new;
     my $reader = $worker->reader;
-    $self->{select}->add($reader);
+    my $watcher = AnyEvent->io(
+        fh   => $reader,
+        poll => 'r',
+        cb   => sub { $self->receive_job($reader) },
+    );
+    push @{ $self->{watchers} }, $watcher;
     $self->{workers}{$reader} = {
         worker => $worker,
         status => 'available',
@@ -179,14 +178,16 @@ sub available_worker {
 
 # receives a completed job
 sub receive_job {
-    my ( $self, $fh, $frozen ) = @_;
+    my ( $self, $fh ) = @_;
+    my $frozen = $self->read_frozen_job($fh);
 
     # the associated worker is no longer busy
     $self->{workers}{$fh}{status} = 'available';
 
     # forward the answer to our parent process
-    print "$frozen\0";
+    print "$frozen\0"; # TODO use AnyEvent::Handle's push_write
     $self->warn('received a completed job');
+    $self->make_assignments;
     return;
 }
 
@@ -222,7 +223,7 @@ sub terminate_workers {
     my ($self) = @_;
 
     kill 'HUP', map { $_->pid } $self->workers;
-    return;
+    exit;
 }
 
 sub warn {
