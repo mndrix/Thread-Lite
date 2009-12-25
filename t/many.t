@@ -3,10 +3,10 @@ use warnings;
 use Test::More tests => 1;
 use Sub::Future;
 
-my @expected = map { $_*2 } 1..100;
+my @expected = map { $_*2 } 1..500;
 
 my @got;
-for my $i (1..100) {
+for my $i (1..500) {
     my $f = future { $i*2 };
     push @got, $f;
 }

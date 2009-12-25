@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use AnyEvent;
+use AnyEvent::Handle;
 use IPC::Open2 qw();
 use Data::Dump::Streamer;
 use Sub::Future::Worker;
@@ -53,7 +54,9 @@ sub start {
     local $| = 1;
     my $frozen_job = Dump($job)->Names('job')->Out;
     my $writer = $self->{writer};
+    $self->warn("app sending job $job->{id}");
     print $writer "# app to scheduler\n$frozen_job\0";
+    $self->warn("app sent job $job->{id}");
 
     return bless { id => $job->{id} }, 'Sub::Future';
 }
@@ -115,7 +118,7 @@ sub queue_job {
     my ($self) = @_;
     my $frozen_job = $self->read_frozen_job(\*STDIN);
     push @{ $self->{job_queue} }, $frozen_job;
-    $self->warn('queued a job');
+    $self->warn("queued a job:\n$frozen_job");
     $self->make_assignments;
     return;
 }
@@ -185,7 +188,10 @@ sub receive_job {
     $self->{workers}{$fh}{status} = 'available';
 
     # forward the answer to our parent process
-    print "$frozen\0"; # TODO use AnyEvent::Handle's push_write
+    my $stdout = $self->{stdout};
+    $stdout = $self->{stdout} = AnyEvent::Handle->new( fh => \*STDOUT )
+        if not $stdout;
+    $stdout->push_write("$frozen\0");
     $self->warn('received a completed job');
     $self->make_assignments;
     return;
