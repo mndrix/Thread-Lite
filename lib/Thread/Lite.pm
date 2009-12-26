@@ -4,15 +4,6 @@ use warnings;
 use strict;
 use base qw( Exporter );
 use Thread::Lite::Scheduler;
-use overload
-    '""'     => 'value',
-    'bool'   => 'value',
-    '0+'     => 'value',
-    '${}'    => 'value',
-    '@{}'    => 'value',
-    '%{}'    => 'value',
-    fallback => 1
-    ;
 
 BEGIN {
     our @EXPORT = qw( future );
@@ -20,7 +11,7 @@ BEGIN {
 
 =head1 NAME
 
-Thread::Lite - concurrency with futures
+Thread::Lite - lighter weight threads
 
 =cut
 
@@ -29,20 +20,17 @@ our $VERSION = '0.02';
 =head1 SYNOPSIS
 
     use Thread::Lite;
-    my $value = future {
-        # long running computation goes here
+    my $thread = async {
+        # computation goes here
         return 'result goes here';
     };
     
-    # do some things that don't require $value
-    # while $value is calculated in parallel
-    
-    # use the computation's return value (blocks if necessary)
-    print "Long computation returned: $value\n";
+    # retrieve the thread's value
+    say "Long computation returned: ", $thread->join;
 
 =head1 EXPORTED
 
-=head2 future $coderef
+=head2 async $coderef
 
 Starts executing C<$coderef> in parallel and returns immediately.  The
 returned value can be used at any time to retrieve the value calculated by
@@ -52,7 +40,7 @@ until the value is ready.
 =cut
 
 our $scheduler;
-sub future(&) {
+sub async(&) {
     my ($code) = @_;
 #   return bless { code => $code }, __PACKAGE__;
     $scheduler = Thread::Lite::Scheduler->new if not $scheduler;
@@ -64,7 +52,7 @@ END {
 
 =head1 METHODS
 
-=head2 value
+=head2 join
 
 Calling this method on the object returned by L</future> returns the value
 calculated by the code block.  It's usually not necessary to call this method
