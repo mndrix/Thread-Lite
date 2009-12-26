@@ -3,10 +3,10 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-    NAME                => 'Sub::Future',
+    NAME                => 'Thread::Lite',
     AUTHOR              => 'Michael Hendricks <michael@ndrix.org>',
-    VERSION_FROM        => 'lib/Sub/Future.pm',
-    ABSTRACT_FROM       => 'lib/Sub/Future.pm',
+    VERSION_FROM        => 'lib/Thread/Lite.pm',
+    ABSTRACT_FROM       => 'lib/Thread/Lite.pm',
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'mit')
       : ()),
@@ -17,5 +17,5 @@ WriteMakefile(
         'Sys::CPU'   => 0,
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { FILES => 'Sub-Future-*' },
+    clean               => { FILES => 'Thread-Lite-*' },
 );

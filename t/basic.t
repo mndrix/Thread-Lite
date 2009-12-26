@@ -1,13 +1,13 @@
 use strict;
 use warnings;
 use Test::More tests => 10;
-use Sub::Future;
+use Thread::Lite;
 
 # a scalar return value with explicit usage
 {
     my $value = future { 'something' };
-    is $value->value, 'something', 'a quick scalar return';
-    is $value->value, 'something', '... still has the same value';
+    is $value->join, 'something', 'a quick scalar return';
+    is $value->join, 'something', '... still has the same value';
 }
 
 # a scalar return value with implicit usage

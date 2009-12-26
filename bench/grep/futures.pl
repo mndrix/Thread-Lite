@@ -1,13 +1,13 @@
 use strict;
 use warnings;
 use File::Find;
-use Sub::Future;
+use Thread::Lite;
 
 my $dir = shift;
-my @futures;
+my @threads;
 find({ wanted => \&wanted, no_chdir => 1 }, $dir );
-for my $f (@futures) {
-    my $file = $f->value;
+for my $t (@threads) {
+    my $file = $t->join;
     next if not defined $file;
     print "$file\n";
 }
@@ -15,7 +15,7 @@ for my $f (@futures) {
 sub wanted {
     my $file = $File::Find::name;
     return if -d $file;
-    my $f = future {
+    my $f = async {
         open my $fh, '<', $file or die "Can't open $file: $!";
         local $/;
         my $content = <$fh>;

@@ -1,4 +1,4 @@
-package Sub::Future::Worker;
+package Thread::Lite::Worker;
 use strict;
 use warnings;
 
@@ -66,7 +66,7 @@ sub warn {
     return if not $ENV{DEBUG};
     use Log::StdLog {
         level => 'trace',
-        file  => '/Users/michael/src/Sub-Future/errors.log'
+        file  => '/Users/michael/src/Thread-Lite/errors.log'
     };
     print {*STDLOG} warn => "Worker: $msg\n";
 }

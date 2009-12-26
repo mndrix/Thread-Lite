@@ -1,11 +1,11 @@
 use strict;
 use warnings;
-use Sub::Future qw( future );
+use Thread::Lite qw( async );
 use Benchmark qw( cmpthese );
 
 cmpthese( 1_000, {
     recurse => sub { fib_recur(20) },
-    future  => sub { fib_future(20) },
+    thread  => sub { fib_thread(20) },
 });
 
 sub fib_recur {
@@ -14,10 +14,10 @@ sub fib_recur {
     return fib_recur( $n - 1 ) + fib_recur( $n - 2 );
 }
 
-sub fib_future {
+sub fib_thread {
     my ($n) = @_;
     return $n if $n < 2;
-    my $n1 = fib_future( $n - 1 );
-    my $n2 = fib_future( $n - 2 );
-    return $n1 + $n2;
+    my $n1 = async { fib_thread( $n - 1 ) };
+    my $n2 = async { fib_thread( $n - 2 ) };
+    return $n1->join + $n2->join;
 }

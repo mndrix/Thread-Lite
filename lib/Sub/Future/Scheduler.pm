@@ -1,4 +1,4 @@
-package Sub::Future::Scheduler;
+package Thread::Lite::Scheduler;
 use strict;
 use warnings;
 
@@ -6,7 +6,7 @@ use AnyEvent;
 use AnyEvent::Handle;
 use IPC::Open2 qw();
 use Data::Dump::Streamer;
-use Sub::Future::Worker;
+use Thread::Lite::Worker;
 use IO::Select;
 use IO::Handle;
 use Sys::CPU qw();
@@ -42,7 +42,7 @@ sub workers {
 
 # Scheduler client methods (run in the parent process)
 
-# schedules a new job for running and returns a Sub::Future object
+# schedules a new job for running and returns a Thread::Lite object
 sub start {
     my ( $self, $code ) = @_;
 
@@ -58,7 +58,7 @@ sub start {
     print $writer "# app to scheduler\n$frozen_job\0";
     $self->warn("app sent job $job->{id}");
 
-    return bless { id => $job->{id} }, 'Sub::Future';
+    return bless { id => $job->{id} }, 'Thread::Lite';
 }
 
 # wait for a specific future's answer to be available
@@ -164,7 +164,7 @@ sub available_worker {
     }
 
     # let's create a new worker
-    my $worker = Sub::Future::Worker->new;
+    my $worker = Thread::Lite::Worker->new;
     my $reader = $worker->reader;
     my $watcher = AnyEvent->io(
         fh   => $reader,
@@ -237,7 +237,7 @@ sub warn {
     return if not $ENV{DEBUG};
     use Log::StdLog {
         level => 'trace',
-        file  => '/Users/michael/src/Sub-Future/errors.log'
+        file  => '/Users/michael/src/Thread-Lite/errors.log'
     };
     print {*STDLOG} warn => "Scheduler: $msg\n";
 }

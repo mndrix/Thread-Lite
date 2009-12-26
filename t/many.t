@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Test::More tests => 1;
-use Sub::Future;
+use Thread::Lite;
 
 my @expected = map { $_*2 } 1..500;
 
@@ -12,7 +12,7 @@ for my $i (1..500) {
 }
 use Log::StdLog {
     level => 'trace',
-    file  => '/Users/michael/src/Sub-Future/errors.log'
+    file  => '/Users/michael/src/Thread-Lite/errors.log'
 };
 print {*STDLOG} warn => "Test: asking for values now\n";
 @got = map { $_->value } @got;

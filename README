@@ -1,8 +1,6 @@
-Sub-Future
+Thread-Lite
 
-An implementation of futures (or promises) in Perl.  See
-http://en.wikipedia.org/wiki/Futures_and_promises for more
-details about the concept.
+Lighter weight threads than provided by Perl's ithreads or forking.
 
 INSTALLATION
 
@@ -18,21 +16,21 @@ SUPPORT AND DOCUMENTATION
 After installing, you can find documentation for this module with the
 perldoc command.
 
-    perldoc Sub::Future
+    perldoc Thread::Lite
 
 You can also look for information at:
 
     RT, CPAN's request tracker
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Sub-Future
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Thread-Lite
 
     AnnoCPAN, Annotated CPAN documentation
-        http://annocpan.org/dist/Sub-Future
+        http://annocpan.org/dist/Thread-Lite
 
     CPAN Ratings
-        http://cpanratings.perl.org/d/Sub-Future
+        http://cpanratings.perl.org/d/Thread-Lite
 
     Search CPAN
-        http://search.cpan.org/dist/Sub-Future/
+        http://search.cpan.org/dist/Thread-Lite/
 
 
 COPYRIGHT AND LICENCE

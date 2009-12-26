@@ -2,7 +2,7 @@ Changes
 MANIFEST
 Makefile.PL
 README
-lib/Sub/Future.pm
+lib/Thread/Lite.pm
 t/00-load.t
 t/basic.t
 t/pod-coverage.t

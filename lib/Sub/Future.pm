@@ -1,9 +1,9 @@
-package Sub::Future;
+package Thread::Lite;
 
 use warnings;
 use strict;
 use base qw( Exporter );
-use Sub::Future::Scheduler;
+use Thread::Lite::Scheduler;
 use overload
     '""'     => 'value',
     'bool'   => 'value',
@@ -20,7 +20,7 @@ BEGIN {
 
 =head1 NAME
 
-Sub::Future - concurrency with futures
+Thread::Lite - concurrency with futures
 
 =cut
 
@@ -28,7 +28,7 @@ our $VERSION = '0.02';
 
 =head1 SYNOPSIS
 
-    use Sub::Future;
+    use Thread::Lite;
     my $value = future {
         # long running computation goes here
         return 'result goes here';
@@ -55,7 +55,7 @@ our $scheduler;
 sub future(&) {
     my ($code) = @_;
 #   return bless { code => $code }, __PACKAGE__;
-    $scheduler = Sub::Future::Scheduler->new if not $scheduler;
+    $scheduler = Thread::Lite::Scheduler->new if not $scheduler;
     return $scheduler->start($code);
 }
 END {
@@ -101,26 +101,23 @@ Michael Hendricks, C<< <michael@ndrix.org> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-data-future at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Sub-Future>.  I will be notified, and then you'll
+the web interface at
+L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Thread-Lite>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 VERSION CONTROL
 
-git://github.com/mndrix/Sub-Future.git
+git://github.com/mndrix/Thread-Lite.git
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Sub::Future
+    perldoc Thread::Lite
 
 =head1 SEE ALSO
 
-L<http://github.com/mndrix/Sub-Future>
-
-L<http://en.wikipedia.org/wiki/Futures_and_promises>
-
-L<subs::parallel>
+L<http://github.com/mndrix/Thread-Lite>
 
 =head1 COPYRIGHT & LICENSE
 
@@ -131,4 +128,4 @@ This program is released under the following license: mit
 
 =cut
 
-1; # End of Sub::Future
+1; # End of Thread::Lite

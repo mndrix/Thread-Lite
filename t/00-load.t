@@ -3,7 +3,7 @@
 use Test::More tests => 1;
 
 BEGIN {
-	use_ok( 'Sub::Future' );
+	use_ok( 'Thread::Lite' );
 }
 
-diag( "Testing Sub::Future $Sub::Future::VERSION, Perl $], $^X" );
+diag( "Testing Thread::Lite $Thread::Lite::VERSION, Perl $], $^X" );
